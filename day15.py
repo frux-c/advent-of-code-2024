@@ -1,6 +1,7 @@
 import readfile
 import numpy as np
 import time
+import copy
 
 data = readfile.read_day_file(15)
 
@@ -28,17 +29,17 @@ vvv<<^>^v^^><<>>><>^<<><^vv^^<>vvv<>><^^v>^>vv<>v<<<<v<^v>^<^^>>>^<v<v
 v^^>>><<^^<>>^v^<v^vv<>v^<<>^<^v^v><^<<<><<^<v><v<>vv>>v><v^<vv<>v^<<^
 """
 
-test_data = """\
-#######
-#...#.#
-#.....#
-#..OO@#
-#..O..#
-#.....#
-#######
+# test_data = """\
+# #######
+# #...#.#
+# #.....#
+# #..OO@#
+# #..O..#
+# #.....#
+# #######
 
-<vv<<^^<<^^
-"""
+# <vv<<^^<<^^
+# """
 
 def part_one():
     p1data = data.strip().split("\n\n")
@@ -122,61 +123,38 @@ def part_two():
     def check_valid(x, y):
         return 0 <= x < n and 0 <= y < m
     
-    def move_box_rec(bx, by, dx, dy, moves=[]):
+    def get_connected_boxes(bx, by, dx, dy, boxes=None):
+        if boxes is None:
+            boxes = set()
         if not check_valid(bx, by):
-            return False
-        
+            return boxes
+        if grid[bx][by] == '#':
+            return boxes
+        if grid[bx][by] == '.':
+            return boxes
         bx1, by1 = bx, by
-        if grid[bx][by] == ']':
-            by -= 1
-        else:
+        if grid[bx][by] == '[':
             by1 += 1
-        up_down = (dx, dy) == (-1, 0) or (dx, dy) == (1, 0)
-        left = (dx, dy) == (0, -1)
-        right = (dx, dy) == (0, 1)
-        
-        # check if box can move
-        if up_down and not check_valid(bx + dx, by + dy) or grid[bx + dx][by + dy] == '#':
-            return False
-        if left and not check_valid(bx + dx, by + dy) or grid[bx + dx][by + dy] == '#':
-            return False
-        if right and not check_valid(bx1 + dx, by1 + dy) or grid[bx1 + dx][by1 + dy] == '#':
-            return False
+        elif grid[bx][by] == ']':
+            by -= 1
+        up_down = dx != 0
+        boxes.add((bx, by, bx1, by1))
         if up_down:
-            a = True
-            # check if there is a box aligned in the way
-            if grid[bx + dx][by + dy] == '[' and grid[bx1 + dx][by1 + dy] == ']':
-                a = move_box_rec(bx + dx, by + dy, dx, dy, moves)
-            # check if there are boxes in the way
-            elif grid[bx + dx][by + dy] in {'[', ']'} and grid[bx1 + dx][by1 + dy] in {'[', ']'}:
-                a = move_box_rec(bx + dx, by + dy, dx, dy, moves) and move_box_rec(bx1 + dx, by1 + dy, dx, dy, moves)
-            # there is one box in the way
+            if grid[bx + dx][by + dy] in {'[', ']'} and grid[bx + dx][by + dy] in {'[', ']'}:
+                get_connected_boxes(bx + dx, by + dy, dx, dy, boxes)
+                get_connected_boxes(bx1 + dx, by1 + dy, dx, dy, boxes)
             elif grid[bx + dx][by + dy] in {'[', ']'}:
-                a =  move_box_rec(bx + dx, by + dy, dx, dy, moves)
-            # there is one box in the way
+                get_connected_boxes(bx + dx, by + dy, dx, dy, boxes)
             elif grid[bx1 + dx][by1 + dy] in {'[', ']'}:
-                a = move_box_rec(bx1 + dx, by1 + dy, dx, dy, moves)
-            # move the box
-            moves.append((bx, by, '.'))
-            moves.append((bx1, by1, '.'))
-            moves.append((bx + dx, by + dy, '['))
-            moves.append((bx1 + dx, by1 + dy, ']'))
-            return a
-        # move box left or right
-        a = True
-        if left:
-            if check_valid(bx + dx * 2, by + dy * 2) and \
-                grid[bx + dx][by + dy] in {'[', ']'}:
-                a = move_box_rec(bx + dx * 2, by + dy * 2, dx, dy, moves)
+                get_connected_boxes(bx1 + dx, by1 + dy, dx, dy, boxes)
         else:
-            if check_valid(bx1 + dx * 2, by1 + dy * 2) and \
-                grid[bx1 + dx][by1 + dy] in {'[', ']'}:
-                a = move_box_rec(bx1 + dx * 2, by1 + dy * 2, dx, dy, moves)
-        moves.append((bx + dx, by + dy, grid[bx][by]))
-        moves.append((bx1 + dx, by1 + dy, grid[bx1][by1]))
-        return a
-
-
+            left = dy == -1
+            if left:
+                get_connected_boxes(bx + dx, by + dy, dx, dy, boxes)
+            else:
+                get_connected_boxes(bx1 + dx, by1 + dy, dx, dy, boxes)
+        return boxes
+    
     for k, i in enumerate(instructions):
         if k == 1306:
             k =k
@@ -191,20 +169,27 @@ def part_two():
             grid[fx + dx][fy + dy] = '@'
         elif obs in {'[', ']'}:
             bx0, by0 = fx + dx, fy + dy
-            moves = []
-            shoud_move = move_box_rec(bx0, by0, dx, dy, moves)
-            if shoud_move:
-                for bx, by, c in moves:                        
-                    grid[bx][by] = c
-                    if k >= 1306:
-                        # print('\n'.join(''.join(x) for x in grid))
-                        1 == 1
-                if k >= 1306:
-                    1 == 1
+            boxes = get_connected_boxes(bx0, by0, dx, dy)
+            should_move = True
+            # test_values = []
+            # for bx, by, bx1, by1 in boxes:
+            #     test_values.append(grid[bx][by] + grid[bx1][by1])
+            for bx, by, bx1, by1 in boxes:
+                if not check_valid(bx + dx, by + dy) or grid[bx + dx][by + dy] == '#' or \
+                not check_valid(bx1 + dx, by1 + dy) or grid[bx1 + dx][by1 + dy] == '#':
+                    should_move = False
+                    break
+            if should_move:
+                for bx, by, bx1, by1 in boxes:
+                    grid[bx][by] = '.'
+                    grid[bx1][by1] = '.'
+
+                for bx, by, bx1, by1 in boxes:
+                    grid[bx + dx][by + dy] = '['
+                    grid[bx1 + dx][by1 + dy] = ']'
                 grid[fx][fy] = '.'
                 fish = (fx + dx, fy + dy)
                 grid[fx + dx][fy + dy] = '@'
-        # time.sleep(1/15)
         print(i, k)
         print('\n'.join(''.join(x) for x in grid))
         print()
